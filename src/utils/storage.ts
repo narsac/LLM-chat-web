@@ -1,68 +1,20 @@
-/**
- * 本地存储封装
- * 支持localStorage和内存回退
- */
-export class Storage {
-  private memoryStore: Map<string, string> = new Map()
-  private useMemory: boolean = false
+import { ref, watch } from 'vue';
 
-  constructor() {
-    // 检测是否支持localStorage
-    try {
-      const test = '__test__'
-      localStorage.setItem(test, test)
-      localStorage.removeItem(test)
-    } catch (e) {
-      this.useMemory = true
-      console.warn('localStorage不可用，使用内存存储')
-    }
+export function useStorage<T>(key: string, defaultValue: T) {
+  const storedValue = localStorage.getItem(key);
+  let initialValue: T;
+
+  try {
+    initialValue = storedValue ? JSON.parse(storedValue) : defaultValue;
+  } catch {
+    initialValue = defaultValue;
   }
 
-  get<T>(key: string): T | null {
-    try {
-      const data = this.useMemory 
-        ? this.memoryStore.get(key) 
-        : localStorage.getItem(key)
-      
-      if (!data) return null
-      return JSON.parse(data) as T
-    } catch (e) {
-      console.error('Storage get error:', e)
-      return null
-    }
-  }
+  const value = ref<T>(initialValue);
 
-  set(key: string, value: unknown): boolean {
-    try {
-      const data = JSON.stringify(value)
-      if (this.useMemory) {
-        this.memoryStore.set(key, data)
-      } else {
-        localStorage.setItem(key, data)
-      }
-      return true
-    } catch (e) {
-      console.error('Storage set error:', e)
-      return false
-    }
-  }
+  watch(value, (newValue) => {
+    localStorage.setItem(key, JSON.stringify(newValue));
+  }, { deep: true });
 
-  remove(key: string): void {
-    if (this.useMemory) {
-      this.memoryStore.delete(key)
-    } else {
-      localStorage.removeItem(key)
-    }
-  }
-
-  clear(): void {
-    if (this.useMemory) {
-      this.memoryStore.clear()
-    } else {
-      localStorage.clear()
-    }
-  }
+  return value;
 }
-
-// 导出单例
-export const storage = new Storage()

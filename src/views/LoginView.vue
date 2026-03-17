@@ -1,470 +1,274 @@
-<!-- 
-  登录页面
-  功能：账号密码登录、表单验证、记住我、错误提示、跳转注册
--->
 <template>
-  <div class="login-page">
+  <div class="login-view">
     <div class="login-container">
-      <!-- 左侧：品牌展示 -->
-      <div class="brand-section">
-        <div class="brand-content">
-          <div class="logo">🤖</div>
-          <h1>LLM Chat</h1>
-          <p>智能对话，触手可及</p>
-          <div class="features">
-            <div class="feature">
-              <span class="icon">⚡</span>
-              <span>支持多种大模型</span>
-            </div>
-            <div class="feature">
-              <span class="icon">🔒</span>
-              <span>本地隐私保护</span>
-            </div>
-            <div class="feature">
-              <span class="icon">💬</span>
-              <span>实时流式响应</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- 标题 -->
+      <h1 class="title">欢迎回来</h1>
+      <p class="subtitle">请登录你的账号继续</p>
       
-      <!-- 右侧：登录表单 -->
-      <div class="form-section">
-        <div class="form-container">
-          <h2>欢迎回来</h2>
-          <p class="subtitle">登录您的账号继续对话</p>
-          
-          <!-- 错误提示 -->
-          <div v-if="userStore.loginError" class="error-alert">
-            <span class="icon">⚠️</span>
-            {{ userStore.loginError }}
-          </div>
-          
-          <form @submit.prevent="handleLogin">
-            <!-- 用户名 -->
-            <div class="form-group">
-              <label>用户名或邮箱</label>
-              <div class="input-wrapper">
-                <span class="input-icon">👤</span>
-                <input
-                  v-model="form.username"
-                  type="text"
-                  placeholder="请输入用户名"
-                  :disabled="userStore.isLoading"
-                  @blur="validateField('username')"
-                >
-              </div>
-              <span v-if="errors.username" class="error-text">{{ errors.username }}</span>
-            </div>
-            
-            <!-- 密码 -->
-            <div class="form-group">
-              <label>
-                密码
-                <a href="#" class="forgot-link" @click.prevent="forgotPassword">忘记密码？</a>
-              </label>
-              <div class="input-wrapper">
-                <span class="input-icon">🔒</span>
-                <input
-                  v-model="form.password"
-                  :type="showPassword ? 'text' : 'password'"
-                  placeholder="请输入密码"
-                  :disabled="userStore.isLoading"
-                  @blur="validateField('password')"
-                >
-                <button 
-                  type="button" 
-                  class="toggle-password"
-                  @click="showPassword = !showPassword"
-                >
-                  {{ showPassword ? '🙈' : '👁️' }}
-                </button>
-              </div>
-              <span v-if="errors.password" class="error-text">{{ errors.password }}</span>
-            </div>
-            
-            <!-- 记住我 -->
-            <div class="form-group remember">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="form.remember">
-                <span class="checkmark"></span>
-                <span>记住我（7天）</span>
-              </label>
-            </div>
-            
-            <!-- 登录按钮 -->
-            <button 
-              type="submit" 
-              class="btn-login"
-              :disabled="!isValid || userStore.isLoading"
-            >
-              <span v-if="userStore.isLoading" class="loading-spinner"></span>
-              <span>{{ userStore.isLoading ? '登录中...' : '立即登录' }}</span>
-            </button>
-          </form>
-          
-          <!-- 第三方登录 -->
-          <div class="divider">
-            <span>或使用以下方式</span>
-          </div>
-          
-          <div class="social-login">
-            <button class="btn-social github" @click="socialLogin('github')">
-              <span>GitHub</span>
-            </button>
-            <button class="btn-social google" @click="socialLogin('google')">
-              <span>Google</span>
-            </button>
-          </div>
-          
-          <!-- 注册链接 -->
-          <p class="register-link">
-            还没有账号？
-            <router-link to="/register">立即注册</router-link>
-          </p>
+      <!-- 登录表单 -->
+      <form @submit.prevent="handleLogin" class="login-form">
+        <!-- 邮箱输入 -->
+        <div class="form-group">
+          <input
+            type="email"
+            v-model="email"
+            required
+            placeholder="电子邮箱"
+            :class="{ 'error': emailError }"
+            @blur="validateEmail"
+          />
+          <span v-if="emailError" class="error-message">{{ emailError }}</span>
         </div>
-      </div>
+
+        <!-- 密码输入 -->
+        <div class="form-group">
+          <div class="password-wrapper">
+            <input
+              :type="showPassword ? 'text' : 'password'"
+              v-model="password"
+              required
+              placeholder="密码"
+              :class="{ 'error': passwordError }"
+              @blur="validatePassword"
+            />
+          </div>
+          <span v-if="passwordError" class="error-message">{{ passwordError }}</span>
+        </div>
+
+        <!-- 登录按钮 -->
+        <button 
+          type="submit" 
+          class="login-btn"
+          :disabled="isLoading"
+        >
+          <span v-if="isLoading" class="loading-spinner"></span>
+          <span>{{ isLoading ? '登录中...' : '登录' }}</span>
+        </button>
+
+        <!-- 注册链接 -->
+        <div class="signup-link">
+          还没有账号？ <a href="#">立即注册</a>
+        </div>
+
+        <!-- 演示提示 -->
+        <div class="demo-hint">
+          演示账号：任意邮箱和密码即可登录
+        </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useUserStore } from '@/stores/userStore'
-import type { LoginForm } from '@/types/user'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
 
 const router = useRouter()
-const route = useRoute()
 const userStore = useUserStore()
 
-// 表单数据
-const form = reactive<LoginForm>({
-  username: '',
-  password: '',
-  remember: false
-})
+const email = ref<string>('')
+const password = ref<string>('')
+const showPassword = ref<boolean>(false)
+const isLoading = ref<boolean>(false)
 
-const showPassword = ref(false)
-const errors = reactive({
-  username: '',
-  password: ''
-})
+const emailError = ref<string>('')
+const passwordError = ref<string>('')
 
-// 表单验证
-const validateField = (field: keyof typeof errors) => {
-  errors[field] = ''
-  
-  if (field === 'username') {
-    if (!form.username.trim()) {
-      errors.username = '请输入用户名'
-    } else if (form.username.length < 3) {
-      errors.username = '用户名至少3个字符'
-    }
-  }
-  
-  if (field === 'password') {
-    if (!form.password) {
-      errors.password = '请输入密码'
-    } else if (form.password.length < 6) {
-      errors.password = '密码至少6位'
-    }
+const validateEmail = (): void => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!email.value) {
+    emailError.value = '邮箱不能为空'
+  } else if (!emailRegex.test(email.value)) {
+    emailError.value = '请输入有效的邮箱地址'
+  } else {
+    emailError.value = ''
   }
 }
 
-const isValid = computed(() => {
-  return form.username.trim().length >= 3 && 
-         form.password.length >= 6 &&
-         !errors.username && 
-         !errors.password
-})
-
-// 登录处理
-const handleLogin = async () => {
-  // 验证所有字段
-  validateField('username')
-  validateField('password')
-  
-  if (!isValid.value) return
-  
-  const success = await userStore.login(form)
-  
-  if (success) {
-    // 登录成功，跳转到原目标页面或首页
-    const redirect = route.query.redirect as string
-    router.push(redirect || '/chat')
+const validatePassword = (): void => {
+  if (!password.value) {
+    passwordError.value = '密码不能为空'
+  } else if (password.value.length < 6) {
+    passwordError.value = '密码长度至少为6位'
+  } else {
+    passwordError.value = ''
   }
 }
 
-// 第三方登录
-const socialLogin = (provider: string) => {
-  alert(`${provider}登录功能开发中...`)
-}
-
-// 忘记密码
-const forgotPassword = () => {
-  alert('请联系管理员重置密码')
+const handleLogin = async (): Promise<void> => {
+  validateEmail()
+  validatePassword()
+  
+  if (emailError.value || passwordError.value) return
+  
+  isLoading.value = true
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    await userStore.login(email.value, password.value)
+    router.push('/')
+  } catch (error) {
+    alert('登录失败：' + (error as Error).message)
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
-<style scoped lang="scss">
-.login-page {
+<style scoped>
+.login-view {
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: 20px;
 }
 
 .login-container {
-  display: flex;
   width: 100%;
-  max-width: 1200px;
-  margin: auto;
-  background: white;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  min-height: 600px;
+  max-width: 360px;
+  padding: 40px 24px;
 }
 
-// 左侧品牌区
-.brand-section {
-  flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+/* Logo */
+.logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 60px;
-  
-  .brand-content {
-    text-align: center;
-  }
-  
-  .logo {
-    font-size: 80px;
-    margin-bottom: 20px;
-  }
-  
-  h1 {
-    font-size: 48px;
-    margin: 0 0 16px 0;
-    font-weight: 700;
-  }
-  
-  p {
-    font-size: 20px;
-    opacity: 0.9;
-    margin-bottom: 40px;
-  }
+  gap: 8px;
+  margin-bottom: 32px;
 }
 
-.features {
+.logo-icon {
+  font-size: 32px;
+}
+
+.logo-text {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* 标题 */
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+/* 表单 */
+.login-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  text-align: left;
-}
-
-.feature {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 16px;
-  
-  .icon {
-    font-size: 24px;
-  }
-}
-
-// 右侧表单区
-.form-section {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px;
-  background: #fafafa;
-}
-
-.form-container {
-  width: 100%;
-  max-width: 400px;
-  
-  h2 {
-    font-size: 32px;
-    margin: 0 0 8px 0;
-    color: #1f2937;
-  }
-  
-  .subtitle {
-    color: #6b7280;
-    margin-bottom: 32px;
-  }
-}
-
-.error-alert {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #991b1b;
-  margin-bottom: 20px;
-  font-size: 14px;
 }
 
 .form-group {
-  margin-bottom: 20px;
-  
-  label {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
-    font-weight: 500;
-    color: #374151;
-    margin-bottom: 8px;
-  }
-}
-
-.forgot-link {
-  font-size: 13px;
-  color: #3b82f6;
-  text-decoration: none;
-  
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.input-wrapper {
-  position: relative;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.input-icon {
-  position: absolute;
-  left: 12px;
-  font-size: 16px;
-  color: #9ca3af;
-}
-
-input {
+.form-group input {
   width: 100%;
-  padding: 12px 12px 12px 40px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  font-size: 15px;
+  padding: 12px 16px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
   transition: all 0.2s;
-  
-  &:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-  
-  &:disabled {
-    background: #f3f4f6;
-    cursor: not-allowed;
-  }
+  background: #fafafa;
 }
 
-.toggle-password {
+.form-group input:focus {
+  outline: none;
+  border-color: #10a37f;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+}
+
+.form-group input.error {
+  border-color: #dc2626;
+  background: #fff5f5;
+}
+
+/* 密码输入框包装器 */
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input {
+  padding-right: 44px;
+}
+
+.password-toggle {
   position: absolute;
   right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   cursor: pointer;
   font-size: 16px;
+  color: #999;
   padding: 4px;
 }
 
-.error-text {
-  display: block;
-  margin-top: 6px;
-  font-size: 13px;
-  color: #ef4444;
+.password-toggle:hover {
+  color: #666;
 }
 
-// 记住我
-.remember {
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    font-weight: normal;
-    
-    input {
-      display: none;
-    }
-    
-    .checkmark {
-      width: 18px;
-      height: 18px;
-      border: 2px solid #d1d5db;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      
-      &::after {
-        content: '✓';
-        color: white;
-        font-size: 12px;
-        display: none;
-      }
-    }
-    
-    input:checked + .checkmark {
-      background: #3b82f6;
-      border-color: #3b82f6;
-      
-      &::after {
-        display: block;
-      }
-    }
-  }
+/* 错误信息 */
+.error-message {
+  font-size: 12px;
+  color: #dc2626;
+  margin-left: 4px;
 }
 
-// 登录按钮
-.btn-login {
+/* 登录按钮 */
+.login-btn {
   width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 12px;
+  background: #10a37f;
   color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s;
-  
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
+  margin-top: 8px;
 }
 
+.login-btn:hover:not(:disabled) {
+  background: #0e8c6c;
+}
+
+.login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 加载动画 */
 .loading-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255,255,255,0.3);
-  border-top-color: white;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
+  border-top-color: white;
   animation: spin 0.8s linear infinite;
 }
 
@@ -472,110 +276,71 @@ input {
   to { transform: rotate(360deg); }
 }
 
-// 分隔线
-.divider {
-  position: relative;
+/* 注册链接 */
+.signup-link {
   text-align: center;
-  margin: 24px 0;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: #e5e7eb;
-  }
-  
-  span {
-    position: relative;
-    background: #fafafa;
-    padding: 0 16px;
-    color: #9ca3af;
-    font-size: 14px;
-  }
-}
-
-// 第三方登录
-.social-login {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-social {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: white;
-  cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
-  
-  &:hover {
-    background: #f9fafb;
-    border-color: #d1d5db;
-  }
-  
-  &.github:hover {
-    background: #24292e;
-    color: white;
-    border-color: #24292e;
-  }
-  
-  &.google:hover {
-    background: #ea4335;
-    color: white;
-    border-color: #ea4335;
-  }
+  color: #666;
+  margin-top: 16px;
 }
 
-// 注册链接
-.register-link {
-  text-align: center;
+.signup-link a {
+  color: #10a37f;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
+
+/* 演示提示 */
+.demo-hint {
   margin-top: 24px;
-  color: #6b7280;
-  font-size: 14px;
-  
-  a {
-    color: #3b82f6;
-    text-decoration: none;
-    font-weight: 500;
-    
-    &:hover {
-      text-decoration: underline;
-    }
-  }
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
 }
 
-// 响应式
-@media (max-width: 768px) {
-  .login-container {
-    flex-direction: column;
-    margin: 0;
-    border-radius: 0;
-    min-height: 100vh;
+/* 暗色模式 */
+@media (prefers-color-scheme: dark) {
+  .login-view {
+    background: #1a1a1a;
   }
   
-  .brand-section {
-    padding: 40px 20px;
-    
-    .logo {
-      font-size: 60px;
-    }
-    
-    h1 {
-      font-size: 32px;
-    }
-    
-    .features {
-      display: none;
-    }
+  .logo-text {
+    color: #e5e5e5;
   }
   
-  .form-section {
-    padding: 40px 20px;
+  .title {
+    color: #e5e5e5;
+  }
+  
+  .subtitle {
+    color: #999;
+  }
+  
+  .form-group input {
+    background: #2d2d2d;
+    border-color: #404040;
+    color: #e5e5e5;
+  }
+  
+  .form-group input:focus {
+    background: #333;
+    border-color: #10a37f;
+  }
+  
+  .demo-hint {
+    background: #2d2d2d;
+    color: #999;
+  }
+  
+  .signup-link {
+    color: #999;
   }
 }
 </style>

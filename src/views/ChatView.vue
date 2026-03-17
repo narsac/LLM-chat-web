@@ -1,472 +1,375 @@
 <template>
-  <div class="chat-view" :class="{ 'dark': settingsStore.isDarkMode }">
-    <!-- 侧边栏 -->
-    <Sidebar 
-      :sessions="chatStore.sortedSessions"
-      :current-id="chatStore.currentSessionId"
-      @select="chatStore.switchSession"
-      @new="createNewChat"
-      @delete="chatStore.deleteSession"
-    />
-    
-    <!-- 主内容区 -->
-    <div class="main-area">
-      <!-- 顶部栏 -->
-      <header class="top-bar">
-        <ModelSelector 
-          :models="settingsStore.models"
-          :current="settingsStore.currentModelId"
-          @change="settingsStore.setModel"
-        />
-        
-        <div class="actions">
-          <button class="btn-icon" @click="showSettings = true" title="设置">
-            ⚙️
-          </button>
-          <button class="btn-icon" @click="toggleTheme" title="切换主题">
-            {{ settingsStore.isDarkMode ? '☀️' : '🌙' }}
-          </button>
+  <div class="chat-view">
+    <Sidebar />
+    <div class="chat-main">
+      <!-- 头部 -->
+      <div class="chat-header">
+        <div class="header-left">
+          <h2>DeepSeek Chat</h2>
         </div>
-      </header>
-      
+        <div class="header-right">
+        </div>
+      </div>
+
       <!-- 消息列表 -->
-      <div class="chat-container">
-        <div v-if="!currentSession || currentSession.messages.length === 0" class="welcome">
-          <h1>🤖 AI 对话助手</h1>
-          <p>支持本地Ollama模型和在线API</p>
-          <div class="quick-actions">
-            <button 
-              v-for="prompt in quickPrompts" 
-              :key="prompt"
-              @click="setInput(prompt)"
-            >
-              {{ prompt }}
-            </button>
+      <div class="messages-container" ref="messagesContainer">
+        <div v-if="!chatStore.currentMessages.length" class="welcome-section">
+          <div class="welcome-content">
+            <h1 class="welcome-title">有什么可以帮忙的吗？</h1>
+            <p class="welcome-subtitle">我是 DeepSeek Chat，很高兴为你服务</p>
+            
+            <!-- 建议问题卡片 -->
+            <div class="suggestion-cards">
+              <div class="suggestion-card" @click="handleSuggestionClick('写一篇关于人工智能的文章')">
+                <span class="card-icon">📝</span>
+                <span>写一篇关于人工智能的文章</span>
+              </div>
+              <div class="suggestion-card" @click="handleSuggestionClick('解释什么是量子计算')">
+                <span class="card-icon">🔬</span>
+                <span>解释什么是量子计算</span>
+              </div>
+              <div class="suggestion-card" @click="handleSuggestionClick('帮我写一个Vue3组件')">
+                <span class="card-icon">💻</span>
+                <span>帮我写一个Vue3组件</span>
+              </div>
+              <div class="suggestion-card" @click="handleSuggestionClick('翻译这段文字')">
+                <span class="card-icon">🌐</span>
+                <span>翻译这段文字</span>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div v-else class="chat-messages">
-          <ChatMessage
-            v-for="(msg, index) in currentSession.messages"
-            :key="msg.id"
-            :message="msg"
-            :is-last="index === currentSession.messages.length - 1"
-            @regenerate="regenerate"
+
+        <!-- 消息列表 -->
+        <div v-else class="message-list">
+          <MessageItem
+            v-for="(message, index) in chatStore.currentMessages"
+            :key="message.id"
+            :message="message"
+            :is-consecutive="index > 0 && chatStore.currentMessages[index - 1].role === message.role"
           />
-          
-          <!-- 错误提示 -->
-          <div v-if="error" class="error-banner">
-            <span>❌ {{ error }}</span>
-            <button @click="retryLastMessage">重试</button>
+        </div>
+
+        <!-- 加载指示器 -->
+        <div v-if="chatStore.isLoading && chatStore.streamingContent" class="streaming-indicator">
+          <div class="typing-dots">
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
         </div>
       </div>
       
-      <!-- 输入区 -->
+      <!-- 输入区域 -->
       <div class="input-area">
-        <div class="input-wrapper">
-          <textarea
-            v-model="inputMessage"
-            :disabled="isGenerating"
-            :placeholder="isGenerating ? 'AI正在思考...' : '输入消息...'"
-            rows="1"
-            @keydown.enter.prevent="handleEnter"
-            @input="autoResize"
-            ref="inputRef"
-          ></textarea>
-          
-          <div class="input-actions">
-            <span class="token-hint" v-if="inputMessage">
-              {{ inputMessage.length }} 字符
-            </span>
-            
-            <button 
-              v-if="isGenerating"
-              class="btn-stop"
-              @click="stopGeneration"
-            >
-              ⏹ 停止
-            </button>
-            
-            <button 
-              v-else
-              class="btn-send"
-              :disabled="!inputMessage.trim()"
-              @click="sendMessage"
-            >
-              ➤ 发送
-            </button>
-          </div>
-        </div>
+        <ChatInput 
+          :is-loading="chatStore.isLoading" 
+          @send="handleSendMessage"
+        />
         
-        <div class="input-footer">
-          <span class="hint">Enter发送，Shift+Enter换行</span>
-          <button class="btn-text" @click="exportChat('markdown')">
-            导出Markdown
-          </button>
+        <!-- 底部提示 -->
+        <div class="footer-note">
+          <span> AI可能会犯错，请核查重要信息。</span>
+          <a href="#" class="footer-link">隐私政策</a>
+          <span class="separator">·</span>
+          <a href="#" class="footer-link">使用条款</a>
         </div>
       </div>
     </div>
-    
-    <!-- 设置弹窗 -->
-    <SettingsModal
-      v-if="showSettings"
-      :session="currentSession"
-      @close="showSettings = false"
-      @save="saveSettings"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
-import { useChatStore } from '@/stores/chatStore'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { useChat } from '@/composables/useChat'
-import Sidebar from '@/components/Sidebar.vue'
-import ModelSelector from '@/components/ModelSelector.vue'
-import ChatMessage from '@/components/ChatMessage.vue'
-import SettingsModal from '@/components/SettingsModal.vue'
+import { ref, watch, nextTick, provide } from 'vue'
+import { useRoute } from 'vue-router'
+import { useChatStore } from '../stores/chat'
+import { useSessionStore } from '../stores/session'
+import Sidebar from '../components/layout/Sidebar.vue'
+import MessageItem from '../components/chat/MessageItem.vue'
+import ChatInput from '../components/chat/ChatInput.vue'
 
+const route = useRoute()
 const chatStore = useChatStore()
-const settingsStore = useSettingsStore()
-const {
-  inputMessage,
-  isGenerating,
-  error,
-  currentSession,
-  sendMessage,
-  stopGeneration,
-  regenerate,
-  exportChat
-} = useChat()
-
-const inputRef = ref<HTMLTextAreaElement>()
+const sessionStore = useSessionStore()
+const messagesContainer = ref<HTMLElement | null>(null)
 const showSettings = ref(false)
 
-// 快捷提示词
-const quickPrompts = [
-  '解释一下Vue3的Composition API',
-  '帮我写一段快速排序代码',
-  '什么是深度学习？',
-  '翻译：Hello World'
-]
-
-// 创建新对话
-const createNewChat = () => {
-  chatStore.createSession(settingsStore.currentModelId)
-  nextTick(() => {
-    inputRef.value?.focus()
-  })
-}
-
-// 设置输入
-const setInput = (text: string) => {
-  inputMessage.value = text
-  nextTick(() => {
-    autoResize()
-    inputRef.value?.focus()
-  })
-}
-
-// 处理Enter键
-const handleEnter = (e: KeyboardEvent) => {
-  if (e.shiftKey) {
-    // Shift+Enter换行，默认行为
-    return
+// 监听路由参数变化，切换会话
+watch(() => route.params.id as string, (newId: string) => {
+  if (newId) {
+    sessionStore.currentSessionId = newId
   }
-  sendMessage()
+}, { immediate: true })
+
+// 监听消息变化，滚动到底部
+watch(
+  () => chatStore.currentMessages,
+  () => {
+    nextTick(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
+    })
+  },
+  { deep: true }
+)
+
+// 发送消息
+const handleSendMessage = async (content: string): Promise<void> => {
+  await chatStore.sendMessage(content)
 }
 
-// 自动调整高度
-const autoResize = () => {
-  const textarea = inputRef.value
-  if (!textarea) return
-  
-  textarea.style.height = 'auto'
-  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+// 处理建议问题点击
+const handleSuggestionClick = (text: string): void => {
+  handleSendMessage(text)
 }
 
-// 切换主题
-const toggleTheme = () => {
-  settingsStore.toggleDarkMode()
+// 添加一个 ref 来监听侧边栏状态
+const isSidebarCollapsed = ref(false)
+
+// 提供方法给子组件修改
+const toggleSidebar = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
 
-// 重试最后一条
-const retryLastMessage = () => {
-  if (!currentSession.value) return
-  const lastMsg = currentSession.value.messages[currentSession.value.messages.length - 1]
-  if (lastMsg?.role === 'user') {
-    sendMessage()
-  }
-}
-
-// 保存设置
-const saveSettings = (settings: any) => {
-  if (currentSession.value) {
-    chatStore.updateSessionSettings(currentSession.value.id, settings)
-  }
-  showSettings.value = false
-}
+provide('sidebarState', {
+  isCollapsed: isSidebarCollapsed,
+  toggle: toggleSidebar
+})
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .chat-view {
   display: flex;
   height: 100vh;
   background: #ffffff;
-  
-  &.dark {
-    background: #1a1a1a;
-    color: #e5e5e5;
-  }
 }
 
-.main-area {
+.chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0; // 防止flex子项溢出
+  background: #ffffff;
+  position: relative;
 }
 
-.top-bar {
-  height: 60px;
-  border-bottom: 1px solid #e5e7eb;
+/* 头部样式 */
+.chat-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #ffffff;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  
-  .dark & {
-    border-color: #374151;
-  }
-  
-  .actions {
-    display: flex;
-    gap: 8px;
-  }
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.btn-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 18px;
+.header-left {
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  
-  &:hover {
-    background: #f3f4f6;
-    
-    .dark & {
-      background: #374151;
-    }
-  }
+  gap: 12px;
 }
 
-.chat-container {
+.header-left h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.model-badge {
+  padding: 4px 8px;
+  background: #f5f5f5;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #666;
+}
+
+.icon-btn {
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  transition: background 0.2s;
+}
+
+.icon-btn:hover {
+  background: #f5f5f5;
+}
+
+/* 消息容器 */
+.messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 0;
+  scroll-behavior: smooth;
 }
 
-.welcome {
-  max-width: 600px;
-  margin: 100px auto;
-  text-align: center;
-  
-  h1 {
-    font-size: 32px;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  
-  p {
-    color: #6b7280;
-    margin-bottom: 32px;
-    
-    .dark & {
-      color: #9ca3af;
-    }
-  }
-}
-
-.quick-actions {
+/* 欢迎区域 */
+.welcome-section {
+  height: 100%;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
   justify-content: center;
-  
-  button {
-    padding: 12px 20px;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: white;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-    
-    &:hover {
-      border-color: #3b82f6;
-      color: #3b82f6;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-    }
-    
-    .dark & {
-      background: #374151;
-      border-color: #4b5563;
-      color: #e5e5e5;
-    }
-  }
-}
-
-.chat-messages {
-  max-width: 800px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.error-banner {
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-  padding: 12px 16px;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  
-  button {
-    padding: 4px 12px;
-    background: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-}
-
-.input-area {
-  border-top: 1px solid #e5e7eb;
   padding: 20px;
-  
-  .dark & {
-    border-color: #374151;
-  }
 }
 
-.input-wrapper {
+.welcome-content {
   max-width: 800px;
-  margin: 0 auto;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  
-  .dark & {
-    background: #374151;
-    border-color: #4b5563;
-  }
-  
-  textarea {
-    width: 100%;
-    border: none;
-    background: transparent;
-    resize: none;
-    font-size: 15px;
-    line-height: 1.6;
-    max-height: 200px;
-    font-family: inherit;
-    
-    &:focus {
-      outline: none;
-    }
-    
-    &::placeholder {
-      color: #9ca3af;
-    }
-    
-    .dark & {
-      color: #e5e5e5;
-    }
-  }
+  width: 100%;
+  text-align: center;
 }
 
-.input-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.welcome-title {
+  font-size: 36px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #4a4a4a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.token-hint {
-  font-size: 12px;
-  color: #9ca3af;
+.welcome-subtitle {
+  font-size: 18px;
+  color: #666;
+  margin-bottom: 48px;
 }
 
-.btn-send, .btn-stop {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: none;
+/* 建议卡片 */
+.suggestion-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.suggestion-card {
+  padding: 20px;
+  background: #f9f9f9;
+  border: 1px solid #eaeaea;
+  border-radius: 16px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-send {
-  background: #3b82f6;
-  color: white;
-  
-  &:hover:not(:disabled) {
-    background: #2563eb;
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.btn-stop {
-  background: #ef4444;
-  color: white;
-  
-  &:hover {
-    background: #dc2626;
-  }
-}
-
-.input-footer {
-  max-width: 800px;
-  margin: 8px auto 0;
+  transition: all 0.3s ease;
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #9ca3af;
-  
-  .btn-text {
-    background: none;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    
-    &:hover {
-      color: #3b82f6;
-    }
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  font-size: 15px;
+  color: #333;
+}
+
+.suggestion-card:hover {
+  background: #f0f0f0;
+  border-color: #d0d0d0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.card-icon {
+  font-size: 24px;
+}
+
+/* 消息列表 */
+.message-list {
+  padding: 20px 0;
+}
+
+/* 流式输出指示器 */
+.streaming-indicator {
+  padding: 20px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-radius: 24px;
+}
+
+.typing-dots span {
+  width: 8px;
+  height: 8px;
+  background: #999;
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
   }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+/* 输入区域 */
+.input-area {
+  padding: 24px 24px 16px;
+  background: #ffffff;
+  border-top: 1px solid #e5e5e5;
+}
+
+/* 底部提示 */
+.footer-note {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-link {
+  color: #666;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: #1a1a1a;
+  text-decoration: underline;
+}
+
+.separator {
+  color: #ddd;
+}
+
+/* 滚动条样式 */
+.messages-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 </style>
